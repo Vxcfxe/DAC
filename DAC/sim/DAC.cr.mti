@@ -1,0 +1,23 @@
+E:/intelFPGA_litte/DAC/sim/tb_dac60501.v {1 {vlog -work work -vopt -stats=none {E:\intelFPGA_litte\DAC\sim\tb_dac60501.v}
+Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
+-- Compiling module tb_dac60501
+
+Top level modules:
+	tb_dac60501
+
+} {} {}} E:/intelFPGA_litte/DAC/sim/dac60501_uart_top.v {0 {vlog -work work -vopt -stats=none {E:\intelFPGA_litte\DAC\sim\dac60501_uart_top.v}
+Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
+-- Compiling module dac60501_uart_top
+** Error: (vlog-13069) E:\intelFPGA_litte\DAC\sim\dac60501_uart_top.v(557): near "else": syntax error, unexpected else.
+** Error: (vlog-13069) E:\intelFPGA_litte\DAC\sim\dac60501_uart_top.v(568): near "end": syntax error, unexpected end.
+** Error: (vlog-13069) E:\intelFPGA_litte\DAC\sim\dac60501_uart_top.v(601): near "default": syntax error, unexpected default.
+** Error: (vlog-13069) E:\intelFPGA_litte\DAC\sim\dac60501_uart_top.v(608): near "endcase": syntax error, unexpected endcase.
+
+} {4.0 8.0} {}} E:/intelFPGA_litte/DAC/sim/dac60501_model.v {1 {vlog -work work -vopt -stats=none E:/intelFPGA_litte/DAC/sim/dac60501_model.v
+Model Technology ModelSim SE-64 vlog 2020.4 Compiler 2020.10 Oct 13 2020
+-- Compiling module dac60501_model
+
+Top level modules:
+	dac60501_model
+
+} {} {}}

@@ -1,0 +1,33 @@
+{
+	"partitions" : [
+		{
+			"name" : "Top",
+			"pins" : [
+				{
+					"name" : "dac_sdin",
+					"strict" : false
+				},
+				{
+					"name" : "dac_sclk",
+					"strict" : false
+				},
+				{
+					"name" : "dac_sync_n",
+					"strict" : false
+				},
+				{
+					"name" : "clk",
+					"strict" : false
+				},
+				{
+					"name" : "reset_n",
+					"strict" : false
+				},
+				{
+					"name" : "uart_rx",
+					"strict" : false
+				}
+			]
+		}
+	]
+}

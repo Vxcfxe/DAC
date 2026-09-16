@@ -1,0 +1,12 @@
+PowerPlay Power Analyzer Status : Successful - Wed Sep 16 14:46:08 2026
+Quartus Prime Version : 16.1.0 Build 196 10/24/2016 SJ Lite Edition
+Revision Name : DAC
+Top-level Entity Name : dac60501_uart_top
+Family : MAX 10
+Device : 10M08SCE144C8G
+Power Models : Final
+Total Thermal Power Dissipation : 130.71 mW
+Core Dynamic Thermal Power Dissipation : 0.00 mW
+Core Static Thermal Power Dissipation : 110.65 mW
+I/O Thermal Power Dissipation : 20.06 mW
+Power Estimation Confidence : Low: user provided insufficient toggle rate data

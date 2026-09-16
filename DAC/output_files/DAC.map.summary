@@ -1,0 +1,16 @@
+Analysis & Synthesis Status : Successful - Wed Sep 16 14:45:52 2026
+Quartus Prime Version : 16.1.0 Build 196 10/24/2016 SJ Lite Edition
+Revision Name : DAC
+Top-level Entity Name : dac60501_uart_top
+Family : MAX 10
+Total logic elements : 234
+    Total combinational functions : 221
+    Dedicated logic registers : 127
+Total registers : 127
+Total pins : 6
+Total virtual pins : 0
+Total memory bits : 0
+Embedded Multiplier 9-bit elements : 0
+Total PLLs : 0
+UFM blocks : 0
+ADC blocks : 0

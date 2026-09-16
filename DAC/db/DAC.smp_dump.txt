@@ -1,0 +1,15 @@
+
+State Machine - |dac60501_uart_top|spi_state
+Name spi_state.SPI_START spi_state.SPI_IDLE spi_state.SPI_FINISH spi_state.SPI_HIGH 
+spi_state.SPI_IDLE 0 0 0 0 
+spi_state.SPI_START 1 1 0 0 
+spi_state.SPI_HIGH 0 1 0 1 
+spi_state.SPI_FINISH 0 1 1 0 
+
+State Machine - |dac60501_uart_top|init_state
+Name init_state.INIT_ZERO init_state.INIT_CONFIG init_state.INIT_GAIN init_state.INIT_WAIT init_state.INIT_DONE 
+init_state.INIT_WAIT 0 0 0 0 0 
+init_state.INIT_GAIN 0 0 1 1 0 
+init_state.INIT_CONFIG 0 1 0 1 0 
+init_state.INIT_ZERO 1 0 0 1 0 
+init_state.INIT_DONE 0 0 0 1 1 

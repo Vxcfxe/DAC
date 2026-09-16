@@ -1,0 +1,100 @@
+m255
+K4
+z2
+!s11f vlog 2020.4 2020.10, Oct 13 2020
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 dE:/Modelsim/Modeltech64/project
+T_opt
+!s110 1789547482
+V[A8H;S>F^Sm>i79b[[5nn3
+Z1 04 11 4 work tb_dac60501 fast 0
+=1-484d7e9cff68-6aaa53d9-3db-664c
+o-quiet -auto_acc_if_foreign -work work -g TARGET_MV=231 +acc
+Z2 tCvgOpt 0
+n@_opt
+Z3 OL;O;2020.4;71
+R0
+T_opt1
+!s110 1789525462
+VaJOfoZgoEl8N<=n>z0M4V3
+R1
+=1-484d7e9cff68-6aa9fdd5-39e-1e0
+o-quiet -auto_acc_if_foreign -work work
+R2
+n@_opt1
+R3
+R0
+vdac60501_model
+Z4 !s110 1789548915
+!i10b 1
+!s100 8_9dNS5UH1Nz2:Dne`1<E1
+Z5 !s11b Dg1SIo80bB@j0V0VzS_@n1
+I8WdJ4ZWA4RR<;j7jHH:EP2
+Z6 dE:/intelFPGA_litte/DAC/sim
+w1789537143
+8E:/intelFPGA_litte/DAC/sim/dac60501_model.v
+FE:/intelFPGA_litte/DAC/sim/dac60501_model.v
+!i122 5
+L0 3 259
+Z7 VDg1SIo80bB@j0V0VzS_@n1
+Z8 OL;L;2020.4;71
+r1
+!s85 0
+31
+Z9 !s108 1789548915.000000
+!s107 E:/intelFPGA_litte/DAC/sim/dac60501_model.v|
+!s90 -reportprogress|300|-work|work|-vopt|-stats=none|E:/intelFPGA_litte/DAC/sim/dac60501_model.v|
+!i113 0
+Z10 o-work work -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R2
+vdac60501_uart_top
+!s110 1789547481
+!i10b 1
+!s100 bGhPR:71J8H>b[nU]zelk0
+R5
+IFj9JKG<;>K^0cDJg?EVba1
+R6
+w1789537482
+8dac60501_uart_top.v
+Fdac60501_uart_top.v
+!i122 0
+L0 2 614
+R7
+R8
+r1
+!s85 0
+31
+!s108 1789547481.000000
+!s107 tb_dac60501.v|dac60501_model.v|dac60501_uart_top.v|
+!s90 -reportprogress|300|dac60501_uart_top.v|dac60501_model.v|tb_dac60501.v|
+!i113 0
+o-L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R2
+vtb_dac60501
+R4
+!i10b 1
+!s100 AT0XH[c:UL[9FaP6LAbgg3
+R5
+IVZY[MA7:YNU8lcaMCV;551
+R6
+w1789546838
+8E:\intelFPGA_litte\DAC\sim\tb_dac60501.v
+FE:\intelFPGA_litte\DAC\sim\tb_dac60501.v
+!i122 6
+L0 3 263
+R7
+R8
+r1
+!s85 0
+31
+R9
+!s107 E:\intelFPGA_litte\DAC\sim\tb_dac60501.v|
+!s90 -reportprogress|300|-work|work|-vopt|-stats=none|E:\intelFPGA_litte\DAC\sim\tb_dac60501.v|
+!i113 0
+R10
+R2

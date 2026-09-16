@@ -1,0 +1,615 @@
+`timescale 1ns/1ps
+module dac60501_uart_top (
+    input  wire clk,          // 50 MHz
+    input  wire reset_n,      // active low
+
+    input  wire uart_rx,
+
+    output reg  dac_sdin,
+    output reg  dac_sclk,
+    output reg  dac_sync_n
+);
+
+    // ============================================================
+    // 1. UART RX
+    //    50 MHz / 115200 = 434.027
+    // ============================================================
+
+    localparam integer CLKS_PER_BIT  = 434;
+    localparam integer HALF_BIT      = 217;
+
+    reg [8:0] uart_clk_cnt;
+    reg [3:0] uart_bit_cnt;
+
+    reg uart_rx_ff1;
+    reg uart_rx_ff2;
+    reg uart_rx_busy;
+
+    reg [7:0] uart_data;
+    reg       uart_byte_valid;
+
+    always @(posedge clk or negedge reset_n) begin
+
+        if (!reset_n) begin
+
+            uart_clk_cnt   <= 0;
+            uart_bit_cnt   <= 0;
+            uart_rx_ff1    <= 1'b1;
+            uart_rx_ff2    <= 1'b1;
+            uart_rx_busy   <= 1'b0;
+            uart_data      <= 8'h00;
+            uart_byte_valid<= 1'b0;
+
+        end
+        else begin
+
+            // input synchronizer
+            uart_rx_ff1 <= uart_rx;
+            uart_rx_ff2 <= uart_rx_ff1;
+
+            uart_byte_valid <= 1'b0;
+
+            // ----------------------------------------------------
+            // Waiting for start bit
+            // ----------------------------------------------------
+
+            if (!uart_rx_busy) begin
+
+                if (uart_rx_ff2 == 1'b0) begin
+
+                    uart_rx_busy <= 1'b1;
+
+                    // half bit to middle of start bit
+                    uart_clk_cnt <= HALF_BIT;
+
+                    uart_bit_cnt <= 0;
+
+                end
+
+            end
+
+            // ----------------------------------------------------
+            // Receiving byte
+            // ----------------------------------------------------
+
+            else begin
+
+                if (uart_clk_cnt > 0) begin
+
+                    uart_clk_cnt <= uart_clk_cnt - 1;
+
+                end
+                else begin
+
+                    uart_clk_cnt <= CLKS_PER_BIT - 1;
+
+                    // bit 0~7 = data
+                    if (uart_bit_cnt < 8) begin
+
+                        uart_data[uart_bit_cnt] <= uart_rx_ff2;
+
+                        uart_bit_cnt <= uart_bit_cnt + 1;
+
+                    end
+
+                    // bit 8 = stop bit
+                    else begin
+
+                        uart_rx_busy    <= 1'b0;
+                        uart_byte_valid <= 1'b1;
+
+                    end
+
+                end
+
+            end
+
+        end
+
+    end
+
+
+    // ============================================================
+    // 2. ASCII decimal parser
+    //
+    //    PC发送：
+    //
+    //       100<CR><LF>
+    //
+    //    得到：
+    //
+    //       target_mv = 100
+    //
+    // ============================================================
+
+    reg [9:0] target_mv;
+    reg [1:0] digit_count;
+
+    // Accumulate the number as it is received.  This also correctly handles
+    // one- and two-digit commands (for example, "5" means 5 mV, not 500 mV).
+    reg [9:0] input_mv;
+
+    reg command_ready;
+
+    always @(posedge clk or negedge reset_n) begin
+
+        if (!reset_n) begin
+
+            digit_count  <= 0;
+            input_mv     <= 0;
+
+            command_ready <= 1'b0;
+
+        end
+        else begin
+
+            command_ready <= 1'b0;
+
+            if (uart_byte_valid) begin
+
+                // --------------------------------------------
+                // ASCII '0' ~ '9'
+                // --------------------------------------------
+
+                if ((uart_data >= 8'h30) &&
+                    (uart_data <= 8'h39)) begin
+                if (digit_count < 3) begin
+                        input_mv <= input_mv * 10 + (uart_data - 8'h30);
+                        digit_count <= digit_count + 1'b1;
+                    end
+               
+                end
+
+                // --------------------------------------------
+                // CR = 0x0D
+                // --------------------------------------------
+
+                else if (uart_data == 8'h0D) begin
+                     if (digit_count != 0) begin
+                        target_mv <= input_mv;
+                        command_ready <= 1'b1;
+                    end
+
+                    digit_count <= 0;
+                    input_mv <= 0;
+                 
+
+                end
+
+            end
+
+        end
+
+    end
+
+
+    // ============================================================
+    // 3. mV -> DAC Code
+    //
+    // 你的模拟电路：
+    //
+    //       DAC
+    //        |
+    //       5.36k
+    //        |
+    //        +---- VOUT
+    //        |
+    //       1.02k
+    //        |
+    //       GND
+    //
+    // 分压比例：
+    //
+    //       1.02 / (5.36+1.02)
+    //       = 0.1598746
+    //
+    // DAC满量程约2.5V
+    //
+    // 因此：
+    //
+    //       VOUT_MAX ≈ 399.7 mV
+    //
+    // 理论：
+    //
+    //       DAC_CODE = target_mv * 4096 / 399.7
+    //
+    // 这里为了节省 FPGA 资源，不使用除法器。
+    //
+    // 使用：
+    //
+    //       4096/399.7 ≈ 10.257
+    //
+    // 近似：
+    //
+    //       10 + 1/4 + 1/128
+    //
+    // 所以：
+    //
+    //       code = mv*10 + mv/4 + mv/128
+    //
+    // 全部都是移位和加法。
+    // ============================================================
+
+    reg [12:0] dac_code;
+
+    wire [12:0] mv_times_10;
+    wire [12:0] mv_div_4;
+    wire [12:0] mv_div_128;
+
+    assign mv_times_10 =
+            (target_mv << 3) +
+            (target_mv << 1);
+
+    assign mv_div_4   = target_mv >> 2;
+
+    assign mv_div_128 = target_mv >> 7;
+
+    wire [13:0] dac_code_calc;
+
+    assign dac_code_calc =
+            mv_times_10 +
+            mv_div_4 +
+            mv_div_128;
+
+
+    // ============================================================
+    // 4. SPI controller
+    //
+    // SPI frame:
+    //
+    //     [8-bit address][16-bit data]
+    //
+    // 例如：
+    //
+    //     08 40 00
+    //
+    // 表示：
+    //
+    //     DAC address = 08
+    //     data        = 4000h
+    //     DAC code    = 0400h = 1024
+    //
+    // ============================================================
+
+    reg [23:0] spi_shift_reg;
+
+    reg [5:0] spi_bit_count;
+
+    reg [7:0] spi_div_counter;
+
+    reg spi_busy;
+
+    reg [2:0] spi_state;
+
+    localparam SPI_IDLE      = 3'd0;
+    localparam SPI_START     = 3'd1;
+    localparam SPI_LOW       = 3'd2;
+    localparam SPI_HIGH      = 3'd3;
+    localparam SPI_FINISH    = 3'd4;
+
+    // SPI clock:
+    //
+    // 50 MHz / (2*25) = 1 MHz
+
+    localparam SPI_DIV = 25;
+
+
+    // ============================================================
+    // 5. Power-on initialization
+    //
+    // 等待1 ms，然后：
+    //
+    // 04 00 00   GAIN
+    // 03 00 00   CONFIG
+    // 08 00 00   DAC = 0
+    //
+    // ============================================================
+
+    reg [15:0] power_counter;
+
+    reg [2:0] init_state;
+
+    localparam INIT_WAIT   = 3'd0;
+    localparam INIT_GAIN   = 3'd1;
+    localparam INIT_CONFIG = 3'd2;
+    localparam INIT_ZERO   = 3'd3;
+    localparam INIT_DONE   = 3'd4;
+
+    reg init_done;
+
+    // ============================================================
+    // SPI request
+    // ============================================================
+
+    reg spi_request;
+
+    reg [23:0] spi_request_data;
+
+
+    // ============================================================
+    // Main controller
+    // ============================================================
+
+    always @(posedge clk or negedge reset_n) begin
+
+        if (!reset_n) begin
+
+            power_counter <= 0;
+
+            init_state <= INIT_WAIT;
+            init_done  <= 1'b0;
+
+            spi_request <= 1'b0;
+            spi_request_data <= 24'h000000;
+
+            dac_code <= 0;
+
+            dac_sdin  <= 1'b0;
+            dac_sclk  <= 1'b0;
+            dac_sync_n <= 1'b1;
+
+            spi_shift_reg <= 0;
+            spi_bit_count <= 0;
+            spi_div_counter <= 0;
+
+            spi_busy <= 1'b0;
+            spi_state <= SPI_IDLE;
+
+        end
+
+        else begin
+
+            // ====================================================
+            // Power-on initialization
+            // ====================================================
+
+            case (init_state)
+
+                INIT_WAIT: begin
+
+                    if (power_counter < 16'd50000) begin
+
+                        power_counter <= power_counter + 1;
+
+                    end
+                    else begin
+
+                        init_state <= INIT_GAIN;
+
+                    end
+
+                end
+
+
+                INIT_GAIN: begin
+
+                    if (!spi_busy && !spi_request) begin
+
+                        spi_request_data <= 24'h040000;
+
+                        spi_request <= 1'b1;
+
+                        init_state <= INIT_CONFIG;
+
+                    end
+
+                end
+
+
+                INIT_CONFIG: begin
+
+                    if (!spi_busy && !spi_request) begin
+
+                        spi_request_data <= 24'h030000;
+
+                        spi_request <= 1'b1;
+
+                        init_state <= INIT_ZERO;
+
+                    end
+
+                end
+
+
+                INIT_ZERO: begin
+
+                    if (!spi_busy && !spi_request) begin
+
+                        spi_request_data <= 24'h080000;
+
+                        spi_request <= 1'b1;
+
+                        init_state <= INIT_DONE;
+
+                    end
+
+                end
+
+
+                INIT_DONE: begin
+
+                    if (!spi_busy && !spi_request) begin
+
+                        init_done <= 1'b1;
+
+                    end
+
+                end
+
+            endcase
+
+
+            // ====================================================
+            // New UART command
+            // ====================================================
+
+            if (init_done && command_ready) begin
+
+                // limit to 399 mV
+
+                if (dac_code_calc > 4095) begin
+
+                    dac_code <= 4095;
+
+                end
+                else begin
+
+                    dac_code <= dac_code_calc[12:0];
+
+                end
+
+                // DAC60501:
+                //
+                // 12-bit data occupies [15:4]
+                //
+                // therefore:
+                //
+                //     DAC_CODE << 4
+                //
+                   if (dac_code_calc > 4095) begin
+                    spi_request_data <= {8'h08, 12'hFFF, 4'b0000};
+                end
+                else begin
+                    spi_request_data <=
+                        {8'h08, dac_code_calc[11:0], 4'b0000};
+                end
+
+                spi_request <= 1'b1;
+
+            end
+
+
+            // ====================================================
+            // SPI request accepted
+            // ====================================================
+
+            if (spi_request && !spi_busy) begin
+
+                spi_request <= 1'b0;
+
+                spi_busy <= 1'b1;
+
+                spi_state <= SPI_START;
+
+                spi_shift_reg <= spi_request_data;
+
+                spi_bit_count <= 0;
+
+                spi_div_counter <= 0;
+
+                dac_sync_n <= 1'b0;
+
+                dac_sclk <= 1'b0;
+
+                dac_sdin <= spi_request_data[23];
+
+            end
+
+
+            // ====================================================
+            // SPI transmission
+            // ====================================================
+
+            if (spi_busy) begin
+
+                case (spi_state)
+
+    SPI_START: begin
+
+    if (spi_div_counter < SPI_DIV-1) begin
+        spi_div_counter <= spi_div_counter + 1;
+    end
+    else begin
+
+        spi_div_counter <= 0;
+
+        // SCLK上升沿
+        dac_sclk <= 1'b1;
+
+        spi_state <= SPI_HIGH;
+
+    end
+
+end
+
+
+SPI_HIGH: begin
+
+    if (spi_div_counter < SPI_DIV-1) begin
+        spi_div_counter <= spi_div_counter + 1;
+    end
+    else begin
+
+        spi_div_counter <= 0;
+
+        // ★ SCLK下降沿
+        // 此时SDIN已经提前稳定
+        dac_sclk <= 1'b0;
+
+        if (spi_bit_count == 23) begin
+
+            spi_state <= SPI_FINISH;
+
+        end
+        else begin
+ 
+            spi_bit_count <= spi_bit_count + 1'b1;
+
+            // The DAC samples on this falling edge.  Nonblocking assignments
+            // update SDIN afterwards, so this prepares the following bit
+            // without overwriting the bit currently being sampled.
+            dac_sdin <= spi_shift_reg[22];
+            spi_shift_reg <= {spi_shift_reg[22:0], 1'b0};
+            spi_state <= SPI_START;
+
+        end
+
+    end
+
+end
+
+                    SPI_FINISH: begin
+
+                        // keep SYNC low slightly longer,
+                        // then release it
+
+                        if (spi_div_counter < SPI_DIV-1) begin
+
+                            spi_div_counter <= spi_div_counter + 1;
+
+                        end
+                        else begin
+
+                            spi_div_counter <= 0;
+
+                            dac_sync_n <= 1'b1;
+
+                            dac_sclk <= 1'b0;
+
+                            dac_sdin <= 1'b0;
+
+                            spi_busy <= 1'b0;
+
+                            spi_state <= SPI_IDLE;
+
+                        end
+
+                    end
+
+
+                    default: begin
+
+                        spi_busy <= 1'b0;
+                        spi_state <= SPI_IDLE;
+
+                    end
+
+                endcase
+
+            end
+
+        end
+
+    end
+
+endmodule

@@ -1,0 +1,18 @@
+Fitter Status : Successful - Wed Sep 16 14:46:01 2026
+Quartus Prime Version : 16.1.0 Build 196 10/24/2016 SJ Lite Edition
+Revision Name : DAC
+Top-level Entity Name : dac60501_uart_top
+Family : MAX 10
+Device : 10M08SCE144C8G
+Timing Models : Final
+Total logic elements : 222 / 8,064 ( 3 % )
+    Total combinational functions : 221 / 8,064 ( 3 % )
+    Dedicated logic registers : 127 / 8,064 ( 2 % )
+Total registers : 127
+Total pins : 6 / 101 ( 6 % )
+Total virtual pins : 0
+Total memory bits : 0 / 387,072 ( 0 % )
+Embedded Multiplier 9-bit elements : 0 / 48 ( 0 % )
+Total PLLs : 0 / 1 ( 0 % )
+UFM blocks : 0 / 1 ( 0 % )
+ADC blocks : 0
