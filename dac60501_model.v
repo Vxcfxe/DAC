@@ -19,6 +19,7 @@ module dac60501_model (
     reg [23:0] shift_reg;
 
     integer bit_count;
+    reg frame_active;
 
     real vref;
     real vdac;
@@ -37,6 +38,7 @@ module dac60501_model (
         shift_reg = 24'h000000;
 
         bit_count = 0;
+        frame_active = 1'b0;
 
         vref = 2.5;
 
@@ -48,6 +50,16 @@ module dac60501_model (
 
     end
 
+
+    // ============================================================
+    // A new low SYNC interval starts a new 24-bit SPI frame.
+    // ============================================================
+
+    always @(negedge sync_n) begin
+        shift_reg = 24'h000000;
+        bit_count = 0;
+        frame_active = 1'b1;
+    end
 
     // ============================================================
     // DAC60501 samples SDIN on falling edge of SCLK
@@ -74,7 +86,10 @@ module dac60501_model (
 
     always @(posedge sync_n) begin
 
-        if (bit_count == 24) begin
+        if (!frame_active) begin
+            // Ignore reset/initialization transitions of SYNC.
+        end
+        else if (bit_count == 24) begin
 
             $display("");
             $display("==============================================");
@@ -165,6 +180,7 @@ module dac60501_model (
         end
 
         bit_count = 0;
+        frame_active = 1'b0;
 
     end
 

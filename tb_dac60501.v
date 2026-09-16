@@ -17,6 +17,8 @@ module tb_dac60501;
     // ============================================================
 
     parameter integer TARGET_MV = 100;
+    integer expected_code;
+    integer observed_code;
 
 
     // ============================================================
@@ -208,20 +210,9 @@ module tb_dac60501;
         uart_rx = 1'b1;
 
 
-        // 等 FPGA reset
-        #2000;
-
-
-        // ========================================================
-        // 注意：
-        //
-        // FPGA内部设置了1 ms POR等待。
-        //
-        // 所以这里等待稍微长一点。
-        //
-        // ========================================================
-
-        #1500000;
+        // Wait for reset and every initialization SPI frame to finish.
+        // This avoids relying on a fixed delay when SPI parameters change.
+        wait (uut.init_done == 1'b1);
 
 
         $display("");
@@ -244,6 +235,20 @@ module tb_dac60501;
         // --------------------------------------------------------
 
         #100000;
+
+        expected_code = TARGET_MV * 10 + TARGET_MV / 4 + TARGET_MV / 128;
+        if (expected_code > 4095)
+            expected_code = 4095;
+        observed_code = dac.dac_reg[15:4];
+
+        if (observed_code !== expected_code) begin
+            $display("ERROR: DAC code mismatch: expected %0d, got %0d",
+                     expected_code, observed_code);
+            $stop;
+        end
+        else begin
+            $display("PASS: DAC code = %0d", observed_code);
+        end
 
 
         $display("");

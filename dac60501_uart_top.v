@@ -23,10 +23,16 @@ module dac60501_uart_top (
 
     reg uart_rx_ff1;
     reg uart_rx_ff2;
-    reg uart_rx_busy;
-
     reg [7:0] uart_data;
     reg       uart_byte_valid;
+
+    // UART sampling must first validate the middle of the start bit, then
+    // wait one complete bit period before sampling data bit 0.
+    localparam RX_IDLE  = 2'd0;
+    localparam RX_START = 2'd1;
+    localparam RX_DATA  = 2'd2;
+    localparam RX_STOP  = 2'd3;
+    reg [1:0] uart_state;
 
     always @(posedge clk or negedge reset_n) begin
 
@@ -36,73 +42,71 @@ module dac60501_uart_top (
             uart_bit_cnt   <= 0;
             uart_rx_ff1    <= 1'b1;
             uart_rx_ff2    <= 1'b1;
-            uart_rx_busy   <= 1'b0;
             uart_data      <= 8'h00;
             uart_byte_valid<= 1'b0;
+            uart_state     <= RX_IDLE;
 
         end
         else begin
 
             // input synchronizer
             uart_rx_ff1 <= uart_rx;
-            uart_rx_ff2 <= uart_rx;
+            uart_rx_ff2 <= uart_rx_ff1;
 
             uart_byte_valid <= 1'b0;
 
-            // ----------------------------------------------------
-            // Waiting for start bit
-            // ----------------------------------------------------
-
-            if (!uart_rx_busy) begin
-
-                if (uart_rx_ff2 == 1'b0) begin
-
-                    uart_rx_busy <= 1'b1;
-
-                    // half bit to middle of start bit
-                    uart_clk_cnt <= HALF_BIT;
-
-                    uart_bit_cnt <= 0;
-
-                end
-
-            end
-
-            // ----------------------------------------------------
-            // Receiving byte
-            // ----------------------------------------------------
-
-            else begin
-
-                if (uart_clk_cnt > 0) begin
-
-                    uart_clk_cnt <= uart_clk_cnt - 1;
-
-                end
-                else begin
-
-                    uart_clk_cnt <= CLKS_PER_BIT - 1;
-
-                    // bit 0~7 = data
-                    if (uart_bit_cnt < 8) begin
-
-                        uart_data[uart_bit_cnt] <= uart_rx_ff2;
-
-                        uart_bit_cnt <= uart_bit_cnt + 1;
-
+            case (uart_state)
+                RX_IDLE: begin
+                    if (!uart_rx_ff2) begin
+                        uart_clk_cnt <= HALF_BIT - 1;
+                        uart_state <= RX_START;
                     end
+                end
 
-                    // bit 8 = stop bit
+                RX_START: begin
+                    if (uart_clk_cnt != 0) begin
+                        uart_clk_cnt <= uart_clk_cnt - 1'b1;
+                    end
+                    else if (!uart_rx_ff2) begin
+                        // Valid start bit.  The first data-bit centre is one
+                        // complete bit period after the start-bit centre.
+                        uart_clk_cnt <= CLKS_PER_BIT - 1;
+                        uart_bit_cnt <= 0;
+                        uart_state <= RX_DATA;
+                    end
                     else begin
-
-                        uart_rx_busy    <= 1'b0;
-                        uart_byte_valid <= 1'b1;
-
+                        uart_state <= RX_IDLE;
                     end
-
                 end
 
-            end
+                RX_DATA: begin
+                    if (uart_clk_cnt != 0) begin
+                        uart_clk_cnt <= uart_clk_cnt - 1'b1;
+                    end
+                    else begin
+                        uart_data[uart_bit_cnt] <= uart_rx_ff2;
+                        uart_clk_cnt <= CLKS_PER_BIT - 1;
+                        if (uart_bit_cnt == 7)
+                            uart_state <= RX_STOP;
+                        else
+                            uart_bit_cnt <= uart_bit_cnt + 1'b1;
+                    end
+                end
+
+                RX_STOP: begin
+                    if (uart_clk_cnt != 0) begin
+                        uart_clk_cnt <= uart_clk_cnt - 1'b1;
+                    end
+                    else begin
+                        // Accept only a valid high stop bit.
+                        if (uart_rx_ff2)
+                            uart_byte_valid <= 1'b1;
+                        uart_state <= RX_IDLE;
+                    end
+                end
+
+                default: uart_state <= RX_IDLE;
+            endcase
 
         end
 
@@ -124,13 +128,11 @@ module dac60501_uart_top (
 
     reg [9:0] target_mv;
 
-    reg [9:0] digit_value;
-
-    reg [9:0] hundreds;
-    reg [9:0] tens;
-    reg [9:0] ones;
-
     reg [1:0] digit_count;
+
+    // Accumulate the number as it is received.  This also correctly handles
+    // one- and two-digit commands (for example, "5" means 5 mV, not 500 mV).
+    reg [9:0] input_mv;
 
     reg command_ready;
 
@@ -140,11 +142,8 @@ module dac60501_uart_top (
 
             target_mv    <= 0;
 
-            hundreds     <= 0;
-            tens         <= 0;
-            ones         <= 0;
-
             digit_count  <= 0;
+            input_mv     <= 0;
 
             command_ready <= 1'b0;
 
@@ -162,28 +161,9 @@ module dac60501_uart_top (
                 if ((uart_data >= 8'h30) &&
                     (uart_data <= 8'h39)) begin
 
-                    digit_value <= uart_data - 8'h30;
-
-                    if (digit_count == 0) begin
-
-                        hundreds <= uart_data - 8'h30;
-
-                        digit_count <= 1;
-
-                    end
-                    else if (digit_count == 1) begin
-
-                        tens <= uart_data - 8'h30;
-
-                        digit_count <= 2;
-
-                    end
-                    else begin
-
-                        ones <= uart_data - 8'h30;
-
-                        digit_count <= 3;
-
+                    if (digit_count < 3) begin
+                        input_mv <= input_mv * 10 + (uart_data - 8'h30);
+                        digit_count <= digit_count + 1'b1;
                     end
 
                 end
@@ -194,15 +174,13 @@ module dac60501_uart_top (
 
                 else if (uart_data == 8'h0D) begin
 
-                    // hundreds*100 + tens*10 + ones
-                    target_mv <=
-                        hundreds * 100 +
-                        tens     * 10  +
-                        ones;
-
-                    command_ready <= 1'b1;
+                    if (digit_count != 0) begin
+                        target_mv <= input_mv;
+                        command_ready <= 1'b1;
+                    end
 
                     digit_count <= 0;
+                    input_mv <= 0;
 
                 end
 
@@ -496,10 +474,13 @@ module dac60501_uart_top (
                 //
                 //     DAC_CODE << 4
                 //
-                spi_request_data <=
-                    {8'h08,
-                     dac_code_calc[11:0],
-                     4'b0000};
+                if (dac_code_calc > 4095) begin
+                    spi_request_data <= {8'h08, 12'hFFF, 4'b0000};
+                end
+                else begin
+                    spi_request_data <=
+                        {8'h08, dac_code_calc[11:0], 4'b0000};
+                end
 
                 spi_request <= 1'b1;
 
@@ -553,12 +534,6 @@ module dac60501_uart_top (
         // SCLK上升沿
         dac_sclk <= 1'b1;
 
-        // ★ 在上升沿时准备下一bit
-        // 当前bit已经在上一个下降沿之后准备好了
-        if (spi_bit_count < 23) begin
-            dac_sdin <= spi_shift_reg[22];
-        end
-
         spi_state <= SPI_HIGH;
 
     end
@@ -586,16 +561,24 @@ SPI_HIGH: begin
         end
         else begin
 
-            spi_bit_count <= spi_bit_count + 1;
-
-            spi_shift_reg <=
-                {spi_shift_reg[22:0], 1'b0};
-
-            spi_state <= SPI_START;
+            spi_bit_count <= spi_bit_count + 1'b1;
+            spi_shift_reg <= {spi_shift_reg[22:0], 1'b0};
+            // Do not change SDIN in the same simulation update as SCLK's
+            // falling edge: the DAC model samples at that edge.  SPI_LOW
+            // changes it one FPGA clock later, safely before the next edge.
+            spi_state <= SPI_LOW;
 
         end
 
     end
+
+end
+
+SPI_LOW: begin
+
+    // After the previous shift, the next MSB is at bit 23.
+    dac_sdin <= spi_shift_reg[23];
+    spi_state <= SPI_START;
 
 end
 
